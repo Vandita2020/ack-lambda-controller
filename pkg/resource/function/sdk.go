@@ -442,6 +442,7 @@ func (rm *resourceManager) sdkCreate(
 	}
 
 	var resp *svcsdk.FunctionConfiguration
+	var resp_code *svcsdk.FunctionCode
 	_ = resp
 	resp, err = rm.sdkapi.CreateFunctionWithContext(ctx, input)
 	rm.metrics.RecordAPICall("CREATE", "CreateFunction", err)
@@ -740,6 +741,13 @@ func (rm *resourceManager) sdkCreate(
 		ko.Status.LayerStatuses = f16
 	} else {
 		ko.Status.LayerStatuses = nil
+	}
+	if resp_code != nil{
+		if resp_code.S3Key != nil {
+			ko.ObjectMeta.Annotations["lambda.services.k8s.aws/s3-key"] = *resp_code.S3Key
+		} else {
+			ko.ObjectMeta.Annotations["lambda.services.k8s.aws/s3-key"] = ""
+		}
 	}
 	return &resource{ko}, nil
 }

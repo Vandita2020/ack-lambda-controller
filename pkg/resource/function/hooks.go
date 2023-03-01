@@ -15,7 +15,9 @@ package function
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	ackcompare "github.com/aws-controllers-k8s/runtime/pkg/compare"
@@ -112,10 +114,18 @@ func (rm *resourceManager) customUpdateFunction(
 		}
 	}
 
+	bytes, _ := json.Marshal(desired.ko.ObjectMeta.Annotations)
+	fmt.Println("My annotation before is:", string(bytes))
+
 	readOneLatest, err := rm.ReadOne(ctx, desired)
 	if err != nil {
 		return nil, err
 	}
+
+	latest.ko.ObjectMeta.Annotations = nil
+	bytes1, _ := json.Marshal(readOneLatest.MetaObject().GetAnnotations())
+	fmt.Println("My annotation after is:", string(bytes1))
+
 	return rm.concreteResource(readOneLatest), nil
 }
 
@@ -335,31 +345,16 @@ func (rm *resourceManager) updateFunctionCode(
 	exit := rlog.Trace("rm.updateFunctionCode")
 	defer exit(err)
 
-	if delta.DifferentAt("Spec.Code.S3Key") &&
-		!delta.DifferentAt("Spec.Code.S3Bucket") &&
-		!delta.DifferentAt("Spec.Code.S3ObjectVersion") &&
-		!delta.DifferentAt("Spec.Code.ImageURI") {
-		log := ackrtlog.FromContext(ctx)
-		log.Info("updating code.s3Key field is not currently supported.")
-		return nil
-	}
-
 	dspec := desired.ko.Spec
 	input := &svcsdk.UpdateFunctionCodeInput{
 		FunctionName: aws.String(*dspec.Name),
 	}
 
-	if dspec.Code != nil {
-		switch {
-		case dspec.Code.ImageURI != nil:
-			input.ImageUri = dspec.Code.ImageURI
-		case dspec.Code.S3Bucket != nil,
-			dspec.Code.S3Key != nil,
-			dspec.Code.S3ObjectVersion != nil:
-			input.S3Bucket = dspec.Code.S3Bucket
-			input.S3Key = dspec.Code.S3Key
-			input.S3ObjectVersion = dspec.Code.S3ObjectVersion
-		}
+	if delta.DifferentAt("Spec.ImageURI") {
+		input.ImageUri = dspec.Code.ImageURI
+	} else if delta.DifferentAt("Spec.Code.S3Key") || delta.DifferentAt("Spec.Code.S3Bucket") {
+		input.S3Key = aws.String(*dspec.Code.S3Key)
+		input.S3Bucket = aws.String(*dspec.Code.S3Bucket)
 	}
 
 	_, err = rm.sdkapi.UpdateFunctionCodeWithContext(ctx, input)
@@ -368,6 +363,13 @@ func (rm *resourceManager) updateFunctionCode(
 		return err
 	}
 
+	if dspec.Code != nil {
+		if dspec.Code.S3Key != nil && *dspec.Code.S3Key != "" {
+			if desired.ko.ObjectMeta.Annotations["lambda.services.k8s.aws/s3-key"] != *dspec.Code.S3Key {
+				desired.ko.ObjectMeta.Annotations["lambda.services.k8s.aws/s3-key"] = *dspec.Code.S3Key
+			}
+		}
+	}
 	return nil
 }
 
@@ -406,6 +408,32 @@ func customPreCompare(
 	a *resource,
 	b *resource,
 ) {
+	s3KeyAnnot, exist := a.ko.GetAnnotations()["lambda.services.k8s.aws/s3-key"]
+	fmt.Println("Checking annotations"+s3KeyAnnot, exist)
+	bytes, _ := json.Marshal(a.ko.GetAnnotations())
+	fmt.Println("My object is:", string(bytes))
+	if !exist {
+		if a.ko.Spec.Code != nil {
+			if a.ko.Spec.Code.S3Key != nil && *a.ko.Spec.Code.S3Key != "" {
+				delta.Add("", nil, nil)
+			}
+		}
+	} else if exist {
+		if s3KeyAnnot == "" {
+			if a.ko.Spec.Code != nil && a.ko.Spec.Code.S3Key != nil && *a.ko.Spec.Code.S3Key != "" {
+				delta.Add("Spec.Code.S3Key", a.ko.ObjectMeta.Annotations["lambda.services.k8s.aws/s3-key"], b.ko.Spec.Code.S3Key)
+			}
+		} else {
+			fmt.Println("checking my delta is working"+s3KeyAnnot, a.ko.Spec.Code.S3Key)
+			if a.ko.Spec.Code == nil {
+				delta.Add("Spec.Code", a.ko.ObjectMeta.Annotations["lambda.services.k8s.aws/s3-key"], b.ko.Spec.Code)
+			}
+			if a.ko.Spec.Code.S3Key == nil || *a.ko.Spec.Code.S3Key != s3KeyAnnot {
+				delta.Add("Spec.Code.S3Key", a.ko.ObjectMeta.Annotations["lambda.services.k8s.aws/s3-key"], b.ko.Spec.Code.S3Key)
+			}
+		}
+	}
+
 	if ackcompare.HasNilDifference(a.ko.Spec.Code, b.ko.Spec.Code) {
 		delta.Add("Spec.Code", a.ko.Spec.Code, b.ko.Spec.Code)
 	} else if a.ko.Spec.Code != nil && b.ko.Spec.Code != nil {
