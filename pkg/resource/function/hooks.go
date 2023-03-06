@@ -247,7 +247,7 @@ func (rm *resourceManager) updateFunctionConfiguration(
 		input.EphemeralStorage = ephemeralStorage
 	}
 
-	if delta.DifferentAt(("Spec.SnapStart")) {
+	if delta.DifferentAt("Spec.SnapStart") {
 		snapStart := &svcsdk.SnapStart{}
 		if dspec.SnapStart != nil {
 			snapStartCopy := dspec.SnapStart.DeepCopy()
@@ -256,10 +256,17 @@ func (rm *resourceManager) updateFunctionConfiguration(
 		input.SnapStart = snapStart
 	}
 
-	_, err = rm.sdkapi.UpdateFunctionConfigurationWithContext(ctx, input)
+	response, err = rm.sdkapi.UpdateFunctionConfigurationWithContext(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateFunctionConfiguration", err)
 	if err != nil {
 		return err
+	}
+	respons
+
+	if desired.ko.Status.CodeSHA256 != nil {
+		if desired.ko.ObjectMeta.Annotations["lambda.service.k8s.aws/codeSha"] != *desired.ko.Status.CodeSHA256 {
+			desired.ko.ObjectMeta.Annotations["lambda.service.k8s.aws/codeSha"] = *desired.ko.Status.CodeSHA256
+		}
 	}
 
 	return nil
@@ -406,6 +413,21 @@ func customPreCompare(
 	a *resource,
 	b *resource,
 ) {
+	codeShaAnnot, exist := a.ko.GetAnnotations()["lambda.service.k8s.aws/codeSha"]
+	if !exist {
+		if b.ko.Status.CodeSHA256 != nil {
+			delta.Add("", nil, nil)
+		}
+	} else if exist {
+		if codeShaAnnot == "" {
+			delta.Add("", nil, nil)
+		} else {
+			if *b.ko.Status.CodeSHA256 != codeShaAnnot {
+				delta.Add("ObjectMeta.Annotations['lambda.services.k8s.aws/codeSha']", a.ko.ObjectMeta.Annotations["lambda.services.k8s.aws/codeSha"], b.ko.Status.CodeSHA256)
+			}
+		}
+	}
+
 	if ackcompare.HasNilDifference(a.ko.Spec.Code, b.ko.Spec.Code) {
 		delta.Add("Spec.Code", a.ko.Spec.Code, b.ko.Spec.Code)
 	} else if a.ko.Spec.Code != nil && b.ko.Spec.Code != nil {

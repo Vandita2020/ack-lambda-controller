@@ -1,17 +1,18 @@
 apiVersion: lambda.services.k8s.aws/v1alpha1
 kind: Function
 metadata:
-  name: $FUNCTION_NAME
+  name: testfunction
   annotations:
-    services.k8s.aws/region: $AWS_REGION
+    services.k8s.aws/region: us-west-2
+    lambda.services.k8s.aws/codeSha: LPjdyPLMyt/xeNHWE1ekPopFwTV2bWmxRCDBdTZr+fo=
 spec:
-  name: $FUNCTION_NAME
+  name: testfunction
   code:
-    s3Bucket: $BUCKET_NAME
-    s3Key: $LAMBDA_FILE_NAME
-  role: $LAMBDA_ROLE
+    s3Bucket: 322962841005-lambda-test
+    s3Key: my-deployment-package.zip
+  role: arn:aws:iam::322962841005:role/lambda_basic_execution
   runtime: python3.9
   handler: main
   description: function created by ACK lambda-controller e2e tests
-  reservedConcurrentExecutions: $RESERVED_CONCURRENT_EXECUTIONS
-  codeSigningConfigARN: "$CODE_SIGNING_CONFIG_ARN"
+  # reservedConcurrentExecutions: $RESERVED_CONCURRENT_EXECUTIONS
+  # codeSigningConfigARN: "$CODE_SIGNING_CONFIG_ARN"
