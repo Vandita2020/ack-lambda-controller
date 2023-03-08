@@ -96,7 +96,7 @@ func (rm *resourceManager) customUpdateFunction(
 	// UpdateFunctionCode because both of them can put the function in a
 	// Pending state.
 	switch {
-	case delta.DifferentAt("Spec.Code"):
+	case delta.DifferentAt("Spec.Code") || delta.DifferentAt("Spec.CodeSHA"):
 		err = rm.updateFunctionCode(ctx, desired, delta)
 		if err != nil {
 			return nil, err
@@ -256,17 +256,10 @@ func (rm *resourceManager) updateFunctionConfiguration(
 		input.SnapStart = snapStart
 	}
 
-	response, err = rm.sdkapi.UpdateFunctionConfigurationWithContext(ctx, input)
+	_, err = rm.sdkapi.UpdateFunctionConfigurationWithContext(ctx, input)
 	rm.metrics.RecordAPICall("UPDATE", "UpdateFunctionConfiguration", err)
 	if err != nil {
 		return err
-	}
-	respons
-
-	if desired.ko.Status.CodeSHA256 != nil {
-		if desired.ko.ObjectMeta.Annotations["lambda.service.k8s.aws/codeSha"] != *desired.ko.Status.CodeSHA256 {
-			desired.ko.ObjectMeta.Annotations["lambda.service.k8s.aws/codeSha"] = *desired.ko.Status.CodeSHA256
-		}
 	}
 
 	return nil
@@ -342,30 +335,22 @@ func (rm *resourceManager) updateFunctionCode(
 	exit := rlog.Trace("rm.updateFunctionCode")
 	defer exit(err)
 
-	if delta.DifferentAt("Spec.Code.S3Key") &&
-		!delta.DifferentAt("Spec.Code.S3Bucket") &&
-		!delta.DifferentAt("Spec.Code.S3ObjectVersion") &&
-		!delta.DifferentAt("Spec.Code.ImageURI") {
-		log := ackrtlog.FromContext(ctx)
-		log.Info("updating code.s3Key field is not currently supported.")
-		return nil
-	}
-
 	dspec := desired.ko.Spec
 	input := &svcsdk.UpdateFunctionCodeInput{
 		FunctionName: aws.String(*dspec.Name),
 	}
 
-	if dspec.Code != nil {
-		switch {
-		case dspec.Code.ImageURI != nil:
-			input.ImageUri = dspec.Code.ImageURI
-		case dspec.Code.S3Bucket != nil,
-			dspec.Code.S3Key != nil,
-			dspec.Code.S3ObjectVersion != nil:
-			input.S3Bucket = dspec.Code.S3Bucket
-			input.S3Key = dspec.Code.S3Key
-			input.S3ObjectVersion = dspec.Code.S3ObjectVersion
+	if delta.DifferentAt("Spec.ImageURI") {
+		input.ImageUri = dspec.Code.ImageURI
+	} else if delta.DifferentAt("Spec.CodeSHA") {
+		if dspec.Code.S3Key != nil {
+			input.S3Key = aws.String(*dspec.Code.S3Key)
+		}
+		if dspec.Code.S3Bucket != nil {
+			input.S3Bucket = aws.String(*dspec.Code.S3Bucket)
+		}
+		if dspec.Code.S3ObjectVersion != nil {
+			input.S3ObjectVersion = aws.String(*dspec.Code.S3ObjectVersion)
 		}
 	}
 
@@ -413,17 +398,12 @@ func customPreCompare(
 	a *resource,
 	b *resource,
 ) {
-	codeShaAnnot, exist := a.ko.GetAnnotations()["lambda.service.k8s.aws/codeSha"]
-	if !exist {
-		if b.ko.Status.CodeSHA256 != nil {
-			delta.Add("", nil, nil)
-		}
-	} else if exist {
-		if codeShaAnnot == "" {
-			delta.Add("", nil, nil)
-		} else {
-			if *b.ko.Status.CodeSHA256 != codeShaAnnot {
-				delta.Add("ObjectMeta.Annotations['lambda.services.k8s.aws/codeSha']", a.ko.ObjectMeta.Annotations["lambda.services.k8s.aws/codeSha"], b.ko.Status.CodeSHA256)
+	codeAnnot, exist := a.ko.GetAnnotations()["lambda.services.k8s.aws/codeSha"]
+
+	if exist {
+		if *b.ko.Status.CodeSHA256 != "" || codeAnnot != "" {
+			if *b.ko.Status.CodeSHA256 != a.ko.ObjectMeta.Annotations["lambda.services.k8s.aws/codeSha"] {
+				delta.Add("Spec.CodeSHA", a.ko.ObjectMeta.Annotations["lambda.services.k8s.aws/codeSha"], b.ko.Status.CodeSHA256)
 			}
 		}
 	}
@@ -446,20 +426,20 @@ func customPreCompare(
 		//  		delta.Add("Spec.Code.S3Bucket", a.ko.Spec.Code.S3Bucket, b.ko.Spec.Code.S3Bucket)
 		//  	}
 		//  }
-		if ackcompare.HasNilDifference(a.ko.Spec.Code.S3Key, b.ko.Spec.Code.S3Key) {
-			delta.Add("Spec.Code.S3Key", a.ko.Spec.Code.S3Key, b.ko.Spec.Code.S3Key)
-		} else if a.ko.Spec.Code.S3Key != nil && b.ko.Spec.Code.S3Key != nil {
-			if *a.ko.Spec.Code.S3Key != *b.ko.Spec.Code.S3Key {
-				delta.Add("Spec.Code.S3Key", a.ko.Spec.Code.S3Key, b.ko.Spec.Code.S3Key)
-			}
-		}
-		if ackcompare.HasNilDifference(a.ko.Spec.Code.S3ObjectVersion, b.ko.Spec.Code.S3ObjectVersion) {
-			delta.Add("Spec.Code.S3ObjectVersion", a.ko.Spec.Code.S3ObjectVersion, b.ko.Spec.Code.S3ObjectVersion)
-		} else if a.ko.Spec.Code.S3ObjectVersion != nil && b.ko.Spec.Code.S3ObjectVersion != nil {
-			if *a.ko.Spec.Code.S3ObjectVersion != *b.ko.Spec.Code.S3ObjectVersion {
-				delta.Add("Spec.Code.S3ObjectVersion", a.ko.Spec.Code.S3ObjectVersion, b.ko.Spec.Code.S3ObjectVersion)
-			}
-		}
+		// if ackcompare.HasNilDifference(a.ko.Spec.Code.S3Key, b.ko.Spec.Code.S3Key) {
+		// 	delta.Add("Spec.Code.S3Key", a.ko.Spec.Code.S3Key, b.ko.Spec.Code.S3Key)
+		// } else if a.ko.Spec.Code.S3Key != nil && b.ko.Spec.Code.S3Key != nil {
+		// 	if *a.ko.Spec.Code.S3Key != *b.ko.Spec.Code.S3Key {
+		// 		delta.Add("Spec.Code.S3Key", a.ko.Spec.Code.S3Key, b.ko.Spec.Code.S3Key)
+		// 	}
+		// }
+		// if ackcompare.HasNilDifference(a.ko.Spec.Code.S3ObjectVersion, b.ko.Spec.Code.S3ObjectVersion) {
+		// 	delta.Add("Spec.Code.S3ObjectVersion", a.ko.Spec.Code.S3ObjectVersion, b.ko.Spec.Code.S3ObjectVersion)
+		// } else if a.ko.Spec.Code.S3ObjectVersion != nil && b.ko.Spec.Code.S3ObjectVersion != nil {
+		// 	if *a.ko.Spec.Code.S3ObjectVersion != *b.ko.Spec.Code.S3ObjectVersion {
+		// 		delta.Add("Spec.Code.S3ObjectVersion", a.ko.Spec.Code.S3ObjectVersion, b.ko.Spec.Code.S3ObjectVersion)
+		// 	}
+		// }
 	}
 }
 
