@@ -6,5 +6,6 @@ resources:
   - bases/lambda.services.k8s.aws_codesigningconfigs.yaml
   - bases/lambda.services.k8s.aws_eventsourcemappings.yaml
   - bases/lambda.services.k8s.aws_functions.yaml
+  - bases/lambda.services.k8s.aws_functioneventinvokeconfigs.yaml
   - bases/lambda.services.k8s.aws_functionurlconfigs.yaml
   - bases/lambda.services.k8s.aws_layerversions.yaml

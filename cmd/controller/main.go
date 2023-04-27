@@ -42,6 +42,7 @@ import (
 	_ "github.com/aws-controllers-k8s/lambda-controller/pkg/resource/code_signing_config"
 	_ "github.com/aws-controllers-k8s/lambda-controller/pkg/resource/event_source_mapping"
 	_ "github.com/aws-controllers-k8s/lambda-controller/pkg/resource/function"
+	_ "github.com/aws-controllers-k8s/lambda-controller/pkg/resource/function_event_invoke_config"
 	_ "github.com/aws-controllers-k8s/lambda-controller/pkg/resource/function_url_config"
 	_ "github.com/aws-controllers-k8s/lambda-controller/pkg/resource/layer_version"
 

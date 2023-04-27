@@ -7,6 +7,10 @@ ignore:
     # FunctionUrlConfig
     # LayerVersion
 operations:
+  PutFunctionEventInvokeConfig:
+    operation_type: 
+      - Create
+    resource_name: FunctionEventInvokeConfig
   PublishLayerVersion:
     operation_type:
       - Create
@@ -139,6 +143,15 @@ resources:
           resource: Function
           path: Spec.Name
         is_primary_key: true
+  FunctionEventInvokeConfig:
+    tags:
+      ignore: true
+    fields:
+      FunctionName:
+        is_required: true
+        is_primary_key: true
+      Qualifier:
+        is_required: true
   LayerVersion:
     fields:
       LayerName:

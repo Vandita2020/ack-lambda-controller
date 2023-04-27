@@ -276,12 +276,14 @@ type FunctionConfiguration struct {
 	VPCConfig *VPCConfigResponse `json:"vpcConfig,omitempty"`
 }
 
-type FunctionEventInvokeConfig struct {
+type FunctionEventInvokeConfig_SDK struct {
 	// A configuration object that specifies the destination of an event after Lambda
 	// processes it.
-	DestinationConfig *DestinationConfig `json:"destinationConfig,omitempty"`
-	FunctionARN       *string            `json:"functionARN,omitempty"`
-	LastModified      *metav1.Time       `json:"lastModified,omitempty"`
+	DestinationConfig        *DestinationConfig `json:"destinationConfig,omitempty"`
+	FunctionARN              *string            `json:"functionARN,omitempty"`
+	LastModified             *metav1.Time       `json:"lastModified,omitempty"`
+	MaximumEventAgeInSeconds *int64             `json:"maximumEventAgeInSeconds,omitempty"`
+	MaximumRetryAttempts     *int64             `json:"maximumRetryAttempts,omitempty"`
 }
 
 // Details about a Lambda function URL.

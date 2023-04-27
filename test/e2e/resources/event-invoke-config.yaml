@@ -1,0 +1,18 @@
+# This manifest will allow users to set one permission and one
+# provisionedConcurrentExecutions values to a lambda function + alias
+apiVersion: lambda.services.k8s.aws/v1alpha1
+kind: FunctionEventInvokeConfig # Note that this is a new kind
+metadata:
+  name: $EVENT_INVOKE_CONFIG_NAME
+  annotations:
+    services.k8s.aws/region: $AWS_REGION
+spec:
+  functionName: $FUNCTION_NAME # controller will use status.version to set the eventInvokeConfig
+  destinationConfig:
+     onFailure: 
+       destination: $DESTINATION_ARN
+     onSuccess:
+       destination: $DESTINATION_ARN
+  maximumEventAgeInSeconds: $MAXIMUM_EVENT_AGE
+  maximumRetryAttempts: $MAXIMUM_RETRY_ATTEMPTS
+  qualifier: $VERSION

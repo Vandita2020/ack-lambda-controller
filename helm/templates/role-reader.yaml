@@ -13,6 +13,7 @@ rules:
   - codesigningconfigs
   - eventsourcemappings
   - functions
+  - functioneventinvokeconfigs
   - functionurlconfigs
   - layerversions
   verbs:
