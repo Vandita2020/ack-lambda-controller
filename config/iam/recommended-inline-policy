@@ -8,6 +8,8 @@
                 "s3:Get*",
                 "ecr:Get*",
                 "ecr:BatchGet*",
+                "ecr:SetRepositoryPolicy",
+                "ecr:GetRepositoryPolicy",
                 "ec2:DescribeSecurityGroups",
                 "ec2:DescribeSubnets",
                 "ec2:DescribeVpcs"
